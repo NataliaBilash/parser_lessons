@@ -58,23 +58,101 @@ with open("index.html") as file:
 with open("all_categories_dict.json") as file:
     all_categories = json.load(file)
 
-#нужно создать цил на каждой итерации которого мы будем заходить в категорию собирать  нее данные и записываьб их в файл
+#нужно создать цикл на каждой итерации которого мы будем заходить в категорию собирать  нее данные и записываьб их в файл
+#счетчик итераций
+iteration_count = int(len(all_categories)) - 1
 count = 0
+print(f"Всего итераций: {iteration_count}")
 for category_name, category_href in all_categories.items():
-    if count == 0:
-        rep = [",", " ", "-", "'"] #замена всех , " " - и ' на _
-        for item in rep:
-            if item in category_name:
-                category_name = category_name.replace(item, "_")
 
-        req = requests.get(url=category_href, headers=headers)
-        src = req.text
-        #сохраняем кажду категорию в отдельную страницу
-        with open(f"data/{count}_{category_name}.html", "w") as file:
-            file.write(src)
+    rep = [",", " ", "-", "'"] #замена всех , " " - и ' на _
+    for item in rep:
+        if item in category_name:
+            category_name = category_name.replace(item, "_")
 
-        with open(f"data/{count}_{category_name}.html") as file:
-            src = file.read()
+    req = requests.get(url=category_href, headers=headers)
+    src = req.text
+    #сохраняем кажду категорию в отдельную страницу в папку data
+    with open(f"/home/zeroff/Рабочий стол/parcer/lesson2/data/{count}_{category_name}.html", "w") as file:
+        file.write(src)
 
-        soup = BeautifulSoup(src, "lxml")
-        count =+1
+    with open(f"/home/zeroff/Рабочий стол/parcer/lesson2/data/{count}_{category_name}.html") as file:
+        src = file.read()
+
+    soup = BeautifulSoup(src, "lxml")
+
+    # проверка страницы на наличие таблицы с продуктами
+    alert_block = soup.find(class_="uk-alert-danger")
+    if alert_block is not None:
+        continue
+
+    #собираем заголовки таблици, калории граммы и тд
+    table_head = soup.find(class_="mzr-tc-group-table").find("tr").find_all("th")
+    product = table_head[0].text #ПРОДУКТ   
+    calories = table_head[1].text #калории
+    proteins = table_head[2].text #
+    fats = table_head[3].text #жиры
+    carbohydrates = table_head[4].text #углеводы
+
+    #открываем файл на запись в таблицу
+    with open(f"/home/zeroff/Рабочий стол/parcer/lesson2/data/{count}_{category_name}.csv", "w", encoding="utf-8") as file: 
+        writer = csv.writer(file) #writter будет писателем в который передается файл со странцей, ниже указано что запсывать в файл
+        writer.writerow(
+            (
+                product,
+                calories,
+                proteins,
+                fats,
+                carbohydrates
+            )
+        )
+    
+
+    # собираем данные продуктов
+    products_data = soup.find(class_="mzr-tc-group-table").find("tbody").find_all("tr")
+
+    product_info = [] #для файла джейсон
+    for item in products_data:
+        product_tds = item.find_all("td")
+
+        title = product_tds[0].find("a").text
+        calories = product_tds[1].text
+        proteins = product_tds[2].text
+        fats = product_tds[3].text
+        carbohydrates = product_tds[4].text
+
+        product_info.append( #json
+            {
+                "Title": title,
+                "Calories": calories,
+                "Proteins": proteins,
+                "Fats": fats,
+                "Carbohydrates": carbohydrates
+            }
+        )  
+
+        with open(f"/home/zeroff/Рабочий стол/parcer/lesson2/data/{count}_{category_name}.csv", "a", encoding="utf-8") as file: #меняем с w на а так как нам аппендом ниже надо дозаписывать
+            writer = csv.writer(file) #writter будет писателем в который передается файл со странцей, ниже указано что запсывать в файл
+            writer.writerow(
+                (
+                    title,
+                    calories,
+                    proteins,
+                    fats,
+                    carbohydrates
+                )
+            )
+        
+    with open(f"/home/zeroff/Рабочий стол/parcer/lesson2/data/{count}_{category_name}.json", "a", encoding="utf-8") as file:
+        json.dump(product_info, file, indent=4, ensure_ascii=False)
+
+    count += 1
+    print(f"# Итерация {count}. {category_name} записан...") #простио счеткик итераций
+    iteration_count = iteration_count - 1
+
+    if iteration_count == 0:
+        print("Работа завершена")
+        break
+
+    print(f"Осталось итераций: {iteration_count}")
+    sleep(random.randrange(2, 4)) #рандомная пауза между итерациями
